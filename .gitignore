@@ -1,0 +1,23 @@
+# Python / Django
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+db.sqlite3
+*.log
+
+# Virtual environment
+ll_env/
+venv/
+.env
+.env.*
+
+# Django static/media
+staticfiles/
+media/
+
+# OS / editor trash
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

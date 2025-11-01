@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Skills Tracker</title>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-color: #1e293b;
+      --accent-color: #38bdf8;
+      --text-color: #f1f5f9;
+      --subtext-color: #94a3b8;
+      --success-color: #22c55e;
+      --error-color: #ef4444;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: var(--bg-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    h1 {
+      margin-top: 2rem;
+      font-size: 2.2rem;
+      color: var(--accent-color);
+    }
+
+    form {
+      background: var(--card-color);
+      padding: 1rem 2rem;
+      border-radius: 1rem;
+      display: flex;
+      gap: 0.75rem;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      margin: 1.5rem 0;
+      transition: all 0.2s ease;
+    }
+
+    form:hover {
+      transform: translateY(-3px);
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 0.6rem 1rem;
+      border: none;
+      border-radius: 0.5rem;
+      outline: none;
+      font-size: 1rem;
+    }
+
+    button {
+      padding: 0.6rem 1rem;
+      border: none;
+      background-color: var(--accent-color);
+      color: #0f172a;
+      font-weight: bold;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    button:hover {
+      background-color: #0ea5e9;
+      transform: scale(1.05);
+    }
+
+    h3 {
+      margin-top: 1rem;
+      color: var(--subtext-color);
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      width: 90%;
+      max-width: 500px;
+      margin-bottom: 3rem;
+    }
+
+    li {
+      background: var(--card-color);
+      margin: 0.5rem 0;
+      padding: 1rem;
+      border-radius: 0.8rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    li:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    }
+
+    a {
+      color: var(--accent-color);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.2s ease;
+    }
+
+    a:hover {
+      color: #7dd3fc;
+    }
+
+    .date {
+      color: var(--subtext-color);
+      font-size: 0.9rem;
+    }
+
+    .fade-in {
+      animation: fadeIn 0.5s ease-in-out forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <h1>📘 My Skills Tracker</h1>
+  <a href="/activity/">📊 View Activity Graph</a>
+  <form id="addTopicForm">
+    <input type="text" id="topicText" placeholder="Enter new topic">
+    <button type="submit">+ Add Topic</button>
+  </form>
+  
+  <h3>Existing Topics:</h3>
+  <ul id="topicsList"></ul>
+
+  <script>
+    async function loadTopics() {
+      const res = await fetch('/topics/');
+      const data = await res.json();
+      const list = document.getElementById('topicsList');
+      list.innerHTML = '';
+
+      if (data.length === 0) {
+        list.innerHTML = '<p style="color:#94a3b8;text-align:center;">No topics yet. Add one!</p>';
+        return;
+      }
+
+      data.forEach(topic => {
+        const li = document.createElement('li');
+        li.classList.add('fade-in');
+        li.innerHTML = `
+          <span>
+            <a href="/entries_page/?topic_id=${topic._id}">${topic.text}</a>
+          </span>
+          <span class="date">${topic.date_added}</span>
+        `;
+        list.appendChild(li);
+      });
+    }
+
+    document.getElementById('addTopicForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = document.getElementById('topicText').value.trim();
+      if (!text) return alert("Enter a topic name!");
+
+      const res = await fetch(`/add_topic/?text=${encodeURIComponent(text)}`);
+      const data = await res.json();
+
+      if (data.error) {
+        alert("Error: " + data.error);
+        return;
+      }
+
+      document.getElementById('topicText').value = '';
+      loadTopics();
+    });
+
+    loadTopics();
+  </script>
+</body>
+</html>

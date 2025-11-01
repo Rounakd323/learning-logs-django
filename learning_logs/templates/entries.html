@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skill Tracker — Entries</title>
+  <style>
+    body {
+      font-family: "Inter", system-ui, sans-serif;
+      background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+      color: #1e293b;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    h1 {
+      margin-top: 40px;
+      font-size: 2rem;
+      color: #0f172a;
+    }
+
+    form {
+      margin-top: 20px;
+      display: flex;
+      gap: 10px;
+      background: white;
+      padding: 12px 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    input {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: #6366f1;
+      box-shadow: 0 0 0 2px rgba(99,102,241,0.2);
+    }
+
+    button {
+      background: #6366f1;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      font-size: 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s ease-in-out;
+    }
+
+    button:hover {
+      background: #4f46e5;
+    }
+
+    h3 {
+      margin-top: 40px;
+      font-size: 1.3rem;
+      color: #334155;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin-top: 10px;
+      width: 90%;
+      max-width: 600px;
+    }
+
+    li {
+      background: white;
+      padding: 14px 18px;
+      margin-bottom: 10px;
+      border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      animation: fadeIn 0.3s ease-in-out;
+    }
+
+    li span {
+      color: #64748b;
+      font-size: 0.9rem;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .back-link {
+      margin-top: 20px;
+      color: #6366f1;
+      text-decoration: none;
+      font-size: 0.95rem;
+    }
+
+    .back-link:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <h1 id="topicTitle">Entries</h1>
+
+  <form id="addEntryForm">
+    <input type="text" id="entryText" placeholder="What did you do today?">
+    <button type="submit">Add Entry</button>
+  </form>
+
+  <h3>Past Entries:</h3>
+  <ul id="entriesList"></ul>
+
+  <a class="back-link" href="/topics_page/">← Back to Topics</a>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const topic_id = params.get('topic_id');
+
+    async function loadEntries() {
+      const res = await fetch(`/entries/?topic_id=${topic_id}`);
+      const data = await res.json();
+      const list = document.getElementById('entriesList');
+      list.innerHTML = '';
+      if (data.length === 0) {
+        list.innerHTML = '<li><em>No entries yet. Start tracking!</em></li>';
+        return;
+      }
+      data.forEach(entry => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <div>${entry.text}</div>
+          <span>${new Date(entry.date_added).toLocaleString()}</span>
+        `;
+        list.appendChild(li);
+      });
+    }
+
+    document.getElementById('addEntryForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = document.getElementById('entryText').value.trim();
+      if (!text) return alert("Enter something!");
+      await fetch(`/add_entry/?topic_id=${topic_id}&text=${encodeURIComponent(text)}`);
+      document.getElementById('entryText').value = '';
+      loadEntries();
+    });
+
+    loadEntries();
+  </script>
+</body>
+</html>

@@ -1,14 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Skill Tracker — Entries</title>
   <style>
+    /* ========== Layout ========== */
     body {
-      font-family: "Inter", system-ui, sans-serif;
+      font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
       background: linear-gradient(135deg, #f8fafc, #e2e8f0);
-      color: #1e293b;
+      color: #0f172a;
       margin: 0;
       padding: 0;
       display: flex;
@@ -17,12 +18,9 @@
       min-height: 100vh;
     }
 
-    h1 {
-      margin-top: 40px;
-      font-size: 2rem;
-      color: #0f172a;
-    }
+    h1 { margin-top: 40px; font-size: 2rem; color: #0f172a; }
 
+    /* form */
     form {
       margin-top: 20px;
       display: flex;
@@ -30,9 +28,10 @@
       background: white;
       padding: 12px 20px;
       border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      width: 90%;
+      max-width: 600px;
     }
-
     input {
       flex: 1;
       padding: 10px 12px;
@@ -41,12 +40,7 @@
       font-size: 1rem;
       outline: none;
     }
-
-    input:focus {
-      border-color: #6366f1;
-      box-shadow: 0 0 0 2px rgba(99,102,241,0.2);
-    }
-
+    input:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.12); }
     button {
       background: #6366f1;
       color: white;
@@ -55,66 +49,69 @@
       font-size: 1rem;
       border-radius: 8px;
       cursor: pointer;
-      transition: background 0.2s ease-in-out;
     }
+    button:hover { background: #4f46e5; }
 
-    button:hover {
-      background: #4f46e5;
-    }
+    h3 { margin-top: 28px; font-size: 1.2rem; color: #334155; }
 
-    h3 {
-      margin-top: 40px;
-      font-size: 1.3rem;
-      color: #334155;
-    }
-
-    ul {
-      list-style: none;
-      padding: 0;
-      margin-top: 10px;
-      width: 90%;
-      max-width: 600px;
-    }
-
+    /* entries list */
+    ul { list-style: none; padding: 0; margin-top: 10px; width: 90%; max-width: 600px; }
     li {
       background: white;
-      padding: 14px 18px;
+      padding: 12px 14px;
       margin-bottom: 10px;
       border-radius: 10px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+      box-shadow: 0 1px 4px rgba(2,6,23,0.06);
       display: flex;
-      justify-content: space-between;
+      gap: 12px;
       align-items: center;
-      animation: fadeIn 0.3s ease-in-out;
+      justify-content: space-between;
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    li:hover { transform: translateY(-3px); box-shadow: 0 6px 18px rgba(2,6,23,0.08); }
+
+    .left {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex: 1;
+      min-width: 0;
     }
 
-    li span {
-      color: #64748b;
-      font-size: 0.9rem;
+    /* small colored square */
+    .sent-square {
+      width: 16px;
+      height: 16px;
+      border-radius: 3px;
+      flex-shrink: 0;
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(5px); }
-      to { opacity: 1; transform: translateY(0); }
+    .meta { color: #475569; font-size: 0.86rem; margin-left: 6px; white-space: nowrap; }
+
+    .text {
+      font-size: 1rem;
+      color: #0f172a;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap; /* one-line entry preview - change if you want multiline */
     }
 
-    .back-link {
-      margin-top: 20px;
-      color: #6366f1;
-      text-decoration: none;
-      font-size: 0.95rem;
-    }
+    .right { color: #64748b; font-size: 0.85rem; white-space: nowrap; margin-left: 8px; }
 
-    .back-link:hover {
-      text-decoration: underline;
-    }
+    .back-link { margin-top: 18px; color: #6366f1; text-decoration: none; font-size: 0.95rem; }
+    .back-link:hover { text-decoration: underline; }
+
+    /* sentiment colors */
+    .sq-positive { background: #10b981; } /* green */
+    .sq-negative { background: #ef4444; } /* red */
+    .sq-neutral  { background: #94a3b8; } /* gray */
   </style>
 </head>
 <body>
   <h1 id="topicTitle">Entries</h1>
 
   <form id="addEntryForm">
-    <input type="text" id="entryText" placeholder="What did you do today?">
+    <input type="text" id="entryText" placeholder="What did you do today?" autocomplete="off" />
     <button type="submit">Add Entry</button>
   </form>
 
@@ -124,37 +121,143 @@
   <a class="back-link" href="/topics_page/">← Back to Topics</a>
 
   <script>
+    /* ==== Config / helpers ==== */
     const params = new URLSearchParams(window.location.search);
     const topic_id = params.get('topic_id');
 
-    async function loadEntries() {
-      const res = await fetch(`/entries/?topic_id=${topic_id}`);
-      const data = await res.json();
-      const list = document.getElementById('entriesList');
-      list.innerHTML = '';
-      if (data.length === 0) {
-        list.innerHTML = '<li><em>No entries yet. Start tracking!</em></li>';
-        return;
-      }
-      data.forEach(entry => {
-        const li = document.createElement('li');
-        li.innerHTML = `
-          <div>${entry.text}</div>
-          <span>${new Date(entry.date_added).toLocaleString()}</span>
-        `;
-        list.appendChild(li);
-      });
+    // sentiment -> small square class + emoji
+    function sentimentMap(sent) {
+      if (!sent) return { cls: 'sq-neutral', emoji: '⬜', label: 'neutral' };
+      const s = String(sent).toLowerCase();
+      if (s.includes('pos') || s === 'positive') return { cls: 'sq-positive', emoji: '😄', label: 'positive' };
+      if (s.includes('neg') || s === 'negative') return { cls: 'sq-negative', emoji: '😡', label: 'negative' };
+      return { cls: 'sq-neutral', emoji: '😐', label: 'neutral' };
     }
 
+    // format score into signed string like "+0.82" or "-0.76"
+    function signedScore(num) {
+      if (num === undefined || num === null || Number.isNaN(Number(num))) return '';
+      const v = Number(num);
+      const sign = (v >= 0) ? '+' : '−'; // using unicode minus for nicer look
+      return `${sign}${Math.abs(v).toFixed(2)}`;
+    }
+
+    // robust date parser: accepts ISO, epoch, or your "YYYY-MM-DD HH:MM:SS" fallback
+    function friendlyDate(d) {
+      if (!d) return '';
+      try {
+        // if it's an object (from JSON that was converted by your driver), handle it:
+        if (typeof d === 'object' && d.$date) return new Date(d.$date).toLocaleString();
+        // try plain Date parsing
+        const parsed = new Date(d);
+        if (!isNaN(parsed)) return parsed.toLocaleString();
+        // fallback: treat "YYYY-MM-DD HH:MM:SS" by replacing space with T
+        const fallback = new Date(d.replace(' ', 'T'));
+        if (!isNaN(fallback)) return fallback.toLocaleString();
+      } catch (e) { /* ignore */ }
+      return String(d);
+    }
+
+    /* ==== Fetch & render ==== */
+    async function loadEntries() {
+      try {
+        const res = await fetch(`/entries/?topic_id=${encodeURIComponent(topic_id)}`);
+        const data = await res.json();
+
+        const list = document.getElementById('entriesList');
+        list.innerHTML = '';
+
+        if (!res.ok) {
+          // show server message if provided
+          const errMsg = (data && data.error) ? data.error : `Server error: ${res.status}`;
+          list.innerHTML = `<li><em>${errMsg}</em></li>`;
+          return;
+        }
+
+        if (!Array.isArray(data) || data.length === 0) {
+          list.innerHTML = '<li><em>No entries yet. Start tracking!</em></li>';
+          return;
+        }
+
+        data.forEach(entry => {
+          // sentiment UI
+          const s = sentimentMap(entry.sentiment);
+          const scoreText = signedScore(entry.score);
+          const scorePart = scoreText ? ` (${s.label}, ${scoreText})` : ` (${s.label})`;
+
+          const li = document.createElement('li');
+
+          // left side: colored square + emoji + text
+          const left = document.createElement('div');
+          left.className = 'left';
+
+          const sq = document.createElement('div');
+          sq.className = `sent-square ${s.cls}`;
+          left.appendChild(sq);
+
+          const emojiSpan = document.createElement('div');
+          emojiSpan.className = 'meta';
+          emojiSpan.textContent = s.emoji;
+          left.appendChild(emojiSpan);
+
+          const textSpan = document.createElement('div');
+          textSpan.className = 'text';
+          textSpan.textContent = entry.text || '';
+          left.appendChild(textSpan);
+
+          // attach left and right parts
+          li.appendChild(left);
+
+          const right = document.createElement('div');
+          right.className = 'right';
+          right.textContent = `${scorePart} • ${friendlyDate(entry.date_added)}`;
+          li.appendChild(right);
+
+          list.appendChild(li);
+        });
+
+      } catch (err) {
+        const list = document.getElementById('entriesList');
+        list.innerHTML = `<li><em>Network error — could not load entries.</em></li>`;
+        console.error(err);
+      }
+    }
+
+    /* ==== Add entry handler (with basic error handling) ==== */
     document.getElementById('addEntryForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const text = document.getElementById('entryText').value.trim();
-      if (!text) return alert("Enter something!");
-      await fetch(`/add_entry/?topic_id=${topic_id}&text=${encodeURIComponent(text)}`);
-      document.getElementById('entryText').value = '';
-      loadEntries();
+      const textEl = document.getElementById('entryText');
+      const text = textEl.value.trim();
+      if (!text) { alert('Enter something!'); return; }
+
+      try {
+        // NOTE: current backend expects GET params; we're using that to be drop-in compatible
+        const res = await fetch(`/add_entry/?topic_id=${encodeURIComponent(topic_id)}&text=${encodeURIComponent(text)}`);
+        const data = await res.json();
+
+        if (!res.ok) {
+          // backend returned an error object
+          const msg = (data && data.error) ? data.error : `Server error: ${res.status}`;
+          alert(msg);
+          return;
+        }
+
+        if (data.error) {
+          alert(data.error);
+          return;
+        }
+
+        // success: clear input and reload
+        textEl.value = '';
+        await loadEntries();
+
+      } catch (err) {
+        console.error(err);
+        alert('Network error: could not add entry.');
+      }
     });
 
+    // initial load
     loadEntries();
   </script>
 </body>

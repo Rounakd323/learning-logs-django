@@ -1,8 +1,9 @@
 from django.http import JsonResponse
 from bson import ObjectId
 from datetime import datetime
-from .mongo_client import topics_collection, entries_collection, activities_collection 
+from .mongo_client import topics_collection, entries_collection
 # from .db import topics_collection, entries_collection
+from .mini_vader import MiniVader
 
 from django.shortcuts import render
 from django.shortcuts import render, redirect
@@ -67,6 +68,15 @@ def get_topics(request):
 
 
 
+from django.http import JsonResponse
+from bson import ObjectId
+from datetime import datetime
+from .mongo_client import topics_collection, entries_collection
+from .mini_vader import MiniVader 
+
+analyzer = MiniVader()
+
+
 def add_entry(request):
     """Add an entry under a specific topic using topic_id."""
     topic_id = request.GET.get("topic_id")
@@ -89,15 +99,27 @@ def add_entry(request):
     if not topic:
         return JsonResponse({"error": "Topic not found."}, status=404)
 
+    senti = analyzer.analyze(entry_text)
+
+    # ✅ Sentiment analysis
+    senti = analyzer.analyze(entry_text)
+
     entry = {
         "topic_id": topic_obj_id,
         "text": entry_text,
-        "username": username,   
+        "username": username,
+        "sentiment": senti.get("label", "neutral"),
+        "score": senti.get("score", 0),
         "date_added": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
 
     entries_collection.insert_one(entry)
-    return JsonResponse({"message": "Entry added successfully!"})
+
+    return JsonResponse({
+        "message": "Entry added successfully!",
+        "sentiment": senti
+    })
+
 
 
 
@@ -115,10 +137,11 @@ def get_entries(request):
 
     entries = list(entries_collection.find(
         {"topic_id": topic_obj_id},
-        {"_id": 0, "text": 1, "date_added": 1}
+        {"_id": 0, "text": 1, "date_added": 1, "sentiment": 1, "score": 1}  # ✅ include sentiment
     ))
 
     return JsonResponse(entries, safe=False)
+
 
 
 def topics_page(request):
@@ -203,25 +226,5 @@ def view_topic(request, topic_id):
 
     return render(request, "view_topic.html", {"topic": topic, "entries": entries})
 
-
-
-
-from django.shortcuts import render, redirect
-from .utils.activity_graph import ActivityGraph
- # adjust import if needed
-def activity_view(request):
-    username = request.COOKIES.get("username")
-    if not username:
-        return redirect("/login/")
-
-    tracker = ActivityGraph(activities_collection, username)
-    activity_raw = tracker.sorted_topics()
-
-    activity_data = [
-        {"topic": item["topic"], "count": item["count"]}
-        for item in activity_raw
-    ]
-
-    return render(request, "activity.html", {"activity_data": activity_data})
 
 

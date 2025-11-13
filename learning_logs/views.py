@@ -25,12 +25,25 @@ def topics_page(request):
     return render(request, 'topics.html')
 
 
+# def entries_page(request):
+#     """Render the entries page only if logged in"""
+#     username = request.COOKIES.get("username")
+#     if not username:
+#         return redirect('login_page')
+#     return render(request, 'entries.html')
+
 def entries_page(request):
-    """Render the entries page only if logged in"""
     username = request.COOKIES.get("username")
     if not username:
         return redirect('login_page')
-    return render(request, 'entries.html')
+
+    topic_id = request.GET.get("topic_id")
+    topic = topics_collection.find_one({"_id": ObjectId(topic_id)}) if topic_id else None
+
+    return render(request, "entries.html", {
+        "topic": topic,
+        "topic_id": str(topic_id)  # ✅ send topic_id as plain string
+    })
 
 def add_topic(request):
     """Add a new topic (like 'Machine Learning' or 'Chess')."""
@@ -227,4 +240,31 @@ def view_topic(request, topic_id):
     return render(request, "view_topic.html", {"topic": topic, "entries": entries})
 
 
+from django.shortcuts import render
+from bson.objectid import ObjectId
+from sumy.parsers.plaintext import PlaintextParser
+from sumy.nlp.tokenizers import Tokenizer
+from sumy.summarizers.lex_rank import LexRankSummarizer
 
+from .mongo_client import topics_collection, entries_collection
+
+def summ(request, topic_id):
+    topic = topics_collection.find_one({"_id": ObjectId(topic_id)})
+    entries = list(entries_collection.find({"topic_id": ObjectId(topic_id)}))
+
+    if not topic:
+        return render(request, "learning_logs/summary.html", {
+            "topic": "Unknown Topic",
+            "summary": []
+        })
+
+    text = "\n".join(e["text"] for e in entries)
+
+    parser = PlaintextParser.from_string(text, Tokenizer("english"))
+    summarizer = LexRankSummarizer()
+    summary = summarizer(parser.document, 3)
+
+    return render(request, "learning_logs/summary.html", {
+        "topic": topic["text"],
+        "summary": [str(s) for s in summary]  # convert sentence objects to strings
+    })

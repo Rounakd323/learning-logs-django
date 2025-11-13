@@ -4,98 +4,96 @@ from collections import defaultdict
 
 class MiniVader:
     def __init__(self, lexicon=None):
-        # Small sample lexicon. Extend this with more words or load from file.
+        # sample lexicon, now supports multiword phrases in lowercase
         self.lexicon = lexicon or {
             "good": 2.0, "great": 3.0, "excellent": 4.0, "amazing": 3.5, "love": 3.0,
-            "happy": 2.0, "nice": 1.5,
+            "happy": 2.0, "nice": 1.5, "decent": 1.5,"beautiful":2.5,
             "bad": -2.0, "terrible": -3.5, "awful": -3.0, "hate": -3.0, "worst": -4.0,
             "sad": -2.0, "disappointing": -2.0,
-            # add more words for better coverage
+
+            # ✅ example multi-grams (you can add more)
+            "not good": -2.5,
+            "very good": 3.0,
+            "really love": 3.5,
+            "kind of bad": -1.5,
+            "not at all good": -3.2
         }
 
-        # Intensifiers: multiplier applied to words after them
         self.intensifiers = {
             "very": 1.5, "extremely": 2.0, "so": 1.3, "really": 1.4, "too": 1.2, "slightly": 0.8
         }
 
-        # Negations flip the polarity of the following sentiment-bearing word(s)
         self.negations = {"not", "never", "no", "n't", "cannot", "can't", "dont", "don't"}
 
-        # Basic emoji mapping (extend as needed)
         self.emoji_lexicon = {
             "😊": 2.0, "🙂": 1.5, "😍": 3.0, "😁": 2.0,
             "😢": -2.0, "😠": -2.5, "😡": -3.0, "😭": -3.0
         }
 
-        # punctuation boost factors
-        self.exclam_boost = 0.2   # per '!' (capped)
-        self.question_boost = 0.1 # per '?', small effect
-
-        # caps boost multiplier
+        self.exclam_boost = 0.2
+        self.question_boost = 0.1
         self.caps_boost = 1.5
+        self.max_phrase_len = 3   # ✅ sliding window 1-gram, 2-gram, 3-gram
 
     def _tokenize(self, text):
-        # preserve emojis by not stripping non-word emojis
-        # split on whitespace and punctuation, keep words and emojis
-        tokens = re.findall(r"\w+|[!?.]+|[\u2600-\u27BF\u1F300-\u1F6FF\u1F900-\u1F9FF]+", text)
-        return tokens
+        return re.findall(r"\w+|[!?.]+|[\u2600-\u27BF\u1F300-\u1F6FF\u1F900-\u1F9FF]+", text)
 
     def _count_exclamation_question(self, text):
-        ex = text.count('!')
-        q = text.count('?')
-        return ex, q
+        return text.count('!'), text.count('?')
 
     def _is_all_caps(self, token):
-        # consider as caps if token has letters and is all uppercase with length>1
         return any(c.isalpha() for c in token) and token.isupper() and len(token) > 1
 
     def _normalize_score(self, raw_score):
-        # VADER-style normalization to compound score between -1 and +1
-        # Using same style formula: compound = raw / sqrt(raw^2 + alpha)
         alpha = 15.0
         if raw_score == 0:
             return 0.0
         compound = raw_score / math.sqrt(raw_score * raw_score + alpha)
-        # clamp just in case
-        if compound > 1.0: compound = 1.0
-        if compound < -1.0: compound = -1.0
-        return compound
+        return max(min(compound, 1.0), -1.0)
+
+    def _match_phrase(self, tokens, i):
+        """
+        Sliding window matcher: tries 3-gram, then 2-gram, ignores punctuation,
+        returns (phrase, length) or (None, 1)
+        """
+        phrase_tokens = []
+        idx = i
+        used = 0
+
+        while idx < len(tokens) and used < self.max_phrase_len:
+            if not re.match(r"\w+", tokens[idx]):  # skip punctuation/emojis in phrase build
+                idx += 1
+                continue
+
+            phrase_tokens.append(tokens[idx].lower())
+            used += 1
+            phrase = " ".join(phrase_tokens)
+
+            if phrase in self.lexicon and used > 1:  # only accept 2+ words as phrase
+                return phrase, idx - i + 1
+
+            idx += 1
+
+        return None, 1  # no phrase match → process normally as 1 token
 
     def analyze(self, text):
-        """
-        Returns a dict:
-        {
-          "compound": float between -1..1,
-          "label": "positive"/"negative"/"neutral",
-          "pos": total_pos_score,
-          "neg": total_neg_score,
-          "neu": neutral_count
-        }
-        """
         if not text or not text.strip():
             return {"compound": 0.0, "label": "neutral", "pos": 0.0, "neg": 0.0, "neu": 0}
 
-        # Preprocessing
         orig_text = text
         tokens = self._tokenize(text)
-        words = [t for t in tokens if re.match(r"\w+", t)]
         ex_count, q_count = self._count_exclamation_question(text)
 
         raw_score = 0.0
         pos_score = 0.0
         neg_score = 0.0
         neu_count = 0
-
         negate_next = False
         i = 0
-        n = len(tokens)
 
-        # handle "but" clauses: split at 'but' and weight second part higher
-        # find index of largest contrastive 'but' (lowercase compare)
-        lower = orig_text.lower()
-        if " but " in lower:
+        # handle "but" clauses
+        if " but " in orig_text.lower():
             parts = re.split(r"\bbut\b", orig_text, flags=re.IGNORECASE)
-            # analyze separately with weights: first 0.5, second 1.5
             first = parts[0].strip()
             second = parts[1].strip() if len(parts) > 1 else ""
             score_first = self._score_plain(first)
@@ -105,13 +103,24 @@ class MiniVader:
             label = "positive" if compound > 0.05 else "negative" if compound < -0.05 else "neutral"
             return {"compound": compound, "label": label, "pos": max(0, combined), "neg": max(0, -combined), "neu": 0}
 
-        # fallback to single-pass scoring if no 'but' clause
-        # we'll implement scoring inline here using helper for intensifiers and emojis
-        while i < n:
+        while i < len(tokens):
             token = tokens[i]
             lower_token = token.lower()
 
-            # emojis lookup
+            # ✅ Multi-gram phrase matching
+            phrase, skip = self._match_phrase(tokens, i)
+            if phrase:
+                v = self.lexicon[phrase]
+                if negate_next:
+                    v = -v
+                    negate_next = False
+                raw_score += v
+                if v > 0: pos_score += v
+                else: neg_score += -v
+                i += skip
+                continue
+
+            # emoji
             if token in self.emoji_lexicon:
                 val = self.emoji_lexicon[token]
                 raw_score += val
@@ -120,24 +129,23 @@ class MiniVader:
                 i += 1
                 continue
 
-            # punctuation tokens just skip (we use punctuation boost later)
+            # punctuation
             if re.fullmatch(r"[!?.]+", token):
                 i += 1
                 continue
 
-            # negation handling
+            # negation
             if lower_token in self.negations:
                 negate_next = True
                 i += 1
                 continue
 
-            # intensifier handling: if current token is an intensifier, lookahead to next word
+            # intensifier
             if lower_token in self.intensifiers:
                 multiplier = self.intensifiers[lower_token]
-                # lookahead for sentiment-bearing word within next 2 tokens
                 j = i + 1
                 applied = False
-                while j < n and j <= i + 2:
+                while j < len(tokens) and j <= i + 2:
                     cand = tokens[j].lower()
                     if cand in self.lexicon:
                         v = self.lexicon[cand] * multiplier
@@ -156,51 +164,51 @@ class MiniVader:
                     i = j + 1
                     continue
                 else:
-                    # no sentiment word found; just skip intensifier
                     i += 1
                     continue
 
-            # normal word sentiment lookup
+            # normal word
             if lower_token in self.lexicon:
                 v = self.lexicon[lower_token]
-                # caps boost if token in all caps (shouted)
                 if self._is_all_caps(token):
                     v *= self.caps_boost
                 if negate_next:
                     v = -v
                     negate_next = False
                 raw_score += v
-                if v > 0:
-                    pos_score += v
-                else:
-                    neg_score += -v
+                if v > 0: pos_score += v
+                else: neg_score += -v
             else:
                 neu_count += 1
             i += 1
 
-        # punctuation boosting (exclamation / question)
-        # cap exclamation effect to avoid runaway boosting
-        ex_boost_total = min(ex_count, 4) * self.exclam_boost
-        q_boost_total = min(q_count, 4) * self.question_boost
-        raw_score *= (1.0 + ex_boost_total + q_boost_total)
+        raw_score *= (1.0 + min(ex_count, 4) * self.exclam_boost +
+                      min(q_count, 4) * self.question_boost)
 
         compound = self._normalize_score(raw_score)
         label = "positive" if compound > 0.05 else "negative" if compound < -0.05 else "neutral"
         return {"compound": compound, "label": label, "pos": pos_score, "neg": neg_score, "neu": neu_count}
 
     def _score_plain(self, text):
-        """
-        Helper that returns raw score for a plain text (no 'but' splitting).
-        This duplicates a subset of analyze logic but returns raw_score for weighted mixing.
-        """
         tokens = self._tokenize(text)
-        n = len(tokens)
         i = 0
         raw_score = 0.0
         negate_next = False
-        while i < n:
+
+        while i < len(tokens):
+            phrase, skip = self._match_phrase(tokens, i)
+            if phrase:
+                v = self.lexicon[phrase]
+                if negate_next:
+                    v = -v
+                    negate_next = False
+                raw_score += v
+                i += skip
+                continue
+
             token = tokens[i]
             lower_token = token.lower()
+
             if token in self.emoji_lexicon:
                 raw_score += self.emoji_lexicon[token]
                 i += 1
@@ -212,30 +220,6 @@ class MiniVader:
                 negate_next = True
                 i += 1
                 continue
-            if lower_token in self.intensifiers:
-                multiplier = self.intensifiers[lower_token]
-                # lookahead
-                j = i + 1
-                applied = False
-                while j < n and j <= i + 2:
-                    cand = tokens[j].lower()
-                    if cand in self.lexicon:
-                        v = self.lexicon[cand] * multiplier
-                        if self._is_all_caps(tokens[j]):
-                            v *= self.caps_boost
-                        if negate_next:
-                            v = -v
-                            negate_next = False
-                        raw_score += v
-                        applied = True
-                        break
-                    j += 1
-                if applied:
-                    i = j + 1
-                    continue
-                else:
-                    i += 1
-                    continue
             if lower_token in self.lexicon:
                 v = self.lexicon[lower_token]
                 if self._is_all_caps(token):
@@ -245,7 +229,8 @@ class MiniVader:
                     negate_next = False
                 raw_score += v
             i += 1
-        # punctuation boosts
+
         ex_count, q_count = self._count_exclamation_question(text)
-        raw_score *= (1.0 + min(ex_count, 4) * self.exclam_boost + min(q_count, 4) * self.question_boost)
+        raw_score *= (1.0 + min(ex_count, 4) * self.exclam_boost +
+                      min(q_count, 4) * self.question_boost)
         return raw_score

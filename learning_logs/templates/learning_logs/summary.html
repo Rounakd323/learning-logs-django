@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Summary - {{ topic }}</title>
+</head>
+<body>
+    <h2>Summary for: {{ topic }}</h2>
+
+    {% if summary %}
+    <ul>
+        {% for sentence in summary %}
+            <li>{{ sentence }}</li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>No summary available.</p>
+    {% endif %}
+
+    <br>
+</body>
+</html>
